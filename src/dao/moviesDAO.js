@@ -5,6 +5,8 @@ let mflix
 const DEFAULT_SORT = [["tomatoes.viewer.numReviews", -1]]
 
 export default class MoviesDAO {
+  static getArrayFromQuery(query){return query.split(',');}
+
   static async injectDB(conn) {
     if (movies) {
       return
@@ -54,14 +56,16 @@ export default class MoviesDAO {
     match one or more values of a specific field.
     */
 
-    let cursor
+    let cursor 
     try {
       // TODO Ticket: Projection
       // Find movies matching the "countries" list, but only return the title
       // and _id. Do not put a limit in your own implementation, the limit
       // here is only included to avoid sending 46000 documents down the
       // wire.
-      cursor = await movies.find().limit(1)
+      cursor = await movies.find(
+        {countries: {$in: countries}},
+        {projection: {title: 1}})
     } catch (e) {
       console.error(`Unable to issue find command, ${e}`)
       return []
@@ -111,12 +115,11 @@ export default class MoviesDAO {
     Given an array of one or more genres, construct a query that searches
     MongoDB for movies with that genre.
     */
-
-    const searchGenre = Array.isArray(genre) ? genre : genre.split(", ")
-
+    // const searchGenre = Array.isArray(genre) ? genre : genre.split(", ")
+    const searchGenre = Array.isArray(genre) ? genre : this.getArrayFromQuery(genre);
     // TODO Ticket: Text and Subfield Search
     // Construct a query that will search for the chosen genre.
-    const query = {}
+    const query = {genres : {$in: searchGenre}}
     const project = {}
     const sort = DEFAULT_SORT
 
@@ -194,6 +197,9 @@ export default class MoviesDAO {
     const queryPipeline = [
       matchStage,
       sortStage,
+      skipStage,
+      limitStage,
+      facetStage
       // TODO Ticket: Faceted Search
       // Add the stages to queryPipeline in the correct order.
     ]
@@ -259,7 +265,14 @@ export default class MoviesDAO {
 
     // TODO Ticket: Paging
     // Use the cursor to only return the movies that belong on the current page
-    const displayCursor = cursor.limit(moviesPerPage)
+
+    // const limitPipeline = [
+    //   { $match: { directors: "Sam Raimi" } },
+    //   { $project: { _id: 0, title: 1, cast: 1 } },
+    //   { $limit: 2 },
+    // ]
+
+    const displayCursor = cursor.skip(page*moviesPerPage).limit(moviesPerPage);
 
     try {
       const moviesList = await displayCursor.toArray()
@@ -293,13 +306,20 @@ export default class MoviesDAO {
 
       // TODO Ticket: Get Comments
       // Implement the required pipeline.
-      const pipeline = [
-        {
-          $match: {
-            _id: ObjectId(id)
-          }
-        }
-      ]
+    //   const pipeline = [
+    //     {
+    //       $match: {
+    //         _id: ObjectId(id)
+    //       },{
+    //       $lookup:{
+    //         from: comments,
+    //         let: { <var_1>: <expression>, …, <var_n>: <expression> },
+    //         pipeline: [ <pipeline to execute on the collection to join> ],
+    //         as: <output array field>
+    //       }
+    //  }
+        
+    //   ]
       return await movies.aggregate(pipeline).next()
     } catch (e) {
       /**

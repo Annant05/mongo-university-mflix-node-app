@@ -35,6 +35,7 @@ describe("User Management", () => {
     const user = await UsersDAO.getUser(testUser.email)
     // for comparison, we delete the _id key returned from Mongo
     delete user._id
+    // console.log(user);
     expect(user).toEqual(testUser)
   })
 
