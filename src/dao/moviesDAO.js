@@ -5,9 +5,11 @@ let mflix
 const DEFAULT_SORT = [["tomatoes.viewer.numReviews", -1]]
 
 export default class MoviesDAO {
-  static getArrayFromQuery(query){return query.split(',');}
+  static getArrayFromQuery (query) {
+    return query.split(",")
+  }
 
-  static async injectDB(conn) {
+  static async injectDB (conn) {
     if (movies) {
       return
     }
@@ -27,7 +29,7 @@ export default class MoviesDAO {
    * current client.
    * @returns {Promise<ConfigurationResult>} An object with configuration details.
    */
-  static async getConfiguration() {
+  static async getConfiguration () {
     const roleInfo = await mflix.command({ connectionStatus: 1 })
     const authInfo = roleInfo.authInfo.authenticatedUserRoles[0]
     const { poolSize, wtimeout } = movies.s.db.serverConfig.s.options
@@ -45,7 +47,7 @@ export default class MoviesDAO {
    * @param {string[]} countries - The list of countries.
    * @returns {Promise<CountryResult>} A promise that will resolve to a list of CountryResults.
    */
-  static async getMoviesByCountry(countries) {
+  static async getMoviesByCountry (countries) {
     /**
     Ticket: Projection
 
@@ -56,7 +58,7 @@ export default class MoviesDAO {
     match one or more values of a specific field.
     */
 
-    let cursor 
+    let cursor
     try {
       // TODO Ticket: Projection
       // Find movies matching the "countries" list, but only return the title
@@ -64,8 +66,9 @@ export default class MoviesDAO {
       // here is only included to avoid sending 46000 documents down the
       // wire.
       cursor = await movies.find(
-        {countries: {$in: countries}},
-        {projection: {title: 1}})
+        { countries: { $in: countries } },
+        { projection: { title: 1 } },
+      )
     } catch (e) {
       console.error(`Unable to issue find command, ${e}`)
       return []
@@ -79,7 +82,7 @@ export default class MoviesDAO {
    * @param {string} text - The text to match with.
    * @returns {QueryParams} The QueryParams for text search
    */
-  static textSearchQuery(text) {
+  static textSearchQuery (text) {
     const query = { $text: { $search: text } }
     const meta_score = { $meta: "textScore" }
     const sort = [["score", meta_score]]
@@ -93,7 +96,7 @@ export default class MoviesDAO {
    * @param {string[]} cast - The cast members to match with.
    * @returns {QueryParams} The QueryParams for cast search
    */
-  static castSearchQuery(cast) {
+  static castSearchQuery (cast) {
     const searchCast = Array.isArray(cast) ? cast : cast.split(", ")
 
     const query = { cast: { $in: searchCast } }
@@ -108,7 +111,7 @@ export default class MoviesDAO {
    * @param {string[]} genre - The genres to match with.
    * @returns {QueryParams} The QueryParams for genre search
    */
-  static genreSearchQuery(genre) {
+  static genreSearchQuery (genre) {
     /**
     Ticket: Text and Subfield Search
 
@@ -116,10 +119,12 @@ export default class MoviesDAO {
     MongoDB for movies with that genre.
     */
     // const searchGenre = Array.isArray(genre) ? genre : genre.split(", ")
-    const searchGenre = Array.isArray(genre) ? genre : this.getArrayFromQuery(genre);
+    const searchGenre = Array.isArray(genre)
+      ? genre
+      : this.getArrayFromQuery(genre)
     // TODO Ticket: Text and Subfield Search
     // Construct a query that will search for the chosen genre.
-    const query = {genres : {$in: searchGenre}}
+    const query = { genres: { $in: searchGenre } }
     const project = {}
     const sort = DEFAULT_SORT
 
@@ -134,7 +139,7 @@ export default class MoviesDAO {
    * @param {number} moviesPerPage - The number of movies to display per page.
    * @returns {FacetedSearchReturn} FacetedSearchReturn
    */
-  static async facetedSearch({
+  static async facetedSearch ({
     filters = null,
     page = 0,
     moviesPerPage = 20,
@@ -199,7 +204,7 @@ export default class MoviesDAO {
       sortStage,
       skipStage,
       limitStage,
-      facetStage
+      facetStage,
       // TODO Ticket: Faceted Search
       // Add the stages to queryPipeline in the correct order.
     ]
@@ -225,7 +230,7 @@ export default class MoviesDAO {
    * @returns {GetMoviesResult} An object with movie results and total results
    * that would match this query
    */
-  static async getMovies({
+  static async getMovies ({
     // here's where the default parameters are set for the getMovies method
     filters = null,
     page = 0,
@@ -272,7 +277,7 @@ export default class MoviesDAO {
     //   { $limit: 2 },
     // ]
 
-    const displayCursor = cursor.skip(page*moviesPerPage).limit(moviesPerPage);
+    const displayCursor = cursor.skip(page * moviesPerPage).limit(moviesPerPage)
 
     try {
       const moviesList = await displayCursor.toArray()
@@ -292,7 +297,7 @@ export default class MoviesDAO {
    * @param {string} id - The desired movie id, the _id in Mongo
    * @returns {MflixMovie | null} Returns either a single movie or nothing
    */
-  static async getMovieByID(id) {
+  static async getMovieByID (id) {
     try {
       /**
       Ticket: Get Comments
@@ -306,20 +311,25 @@ export default class MoviesDAO {
 
       // TODO Ticket: Get Comments
       // Implement the required pipeline.
-    //   const pipeline = [
-    //     {
-    //       $match: {
-    //         _id: ObjectId(id)
-    //       },{
-    //       $lookup:{
-    //         from: comments,
-    //         let: { <var_1>: <expression>, …, <var_n>: <expression> },
-    //         pipeline: [ <pipeline to execute on the collection to join> ],
-    //         as: <output array field>
-    //       }
-    //  }
-        
-    //   ]
+      const pipeline = [
+        {
+          $match: {
+            _id: ObjectId(id),
+          },
+        },
+        {
+          $lookup: {
+            from: "comments",
+            let: { id: "$_id" },
+            pipeline: [
+              { $match: { $expr: { $eq: ["$movie_id", "$$id"] } } },
+              { $sort: { date: -1 } },
+            ],
+            as: "comments",
+          },
+        },
+      ]
+
       return await movies.aggregate(pipeline).next()
     } catch (e) {
       /**
